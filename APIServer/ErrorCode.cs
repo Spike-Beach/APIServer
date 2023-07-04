@@ -32,4 +32,5 @@ public enum ErrorCode : Int16
     RoomFull = 102,
     RoomAlreadyIn = 103,
     InvalidPacketForm = 104,
+    RoomLeaveSuccess = 105,
 }

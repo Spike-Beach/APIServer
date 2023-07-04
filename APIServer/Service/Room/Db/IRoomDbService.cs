@@ -15,6 +15,6 @@ public interface IRoomDbService
     Task<(ErrorCode, List<String>?)> GetRoomList();
     //Task<(ErrorCode, Int16 roomId)> CreateRoom(String roomTitle);
     Task<(ErrorCode, String?)> EnterRoom(Int16 roomId, Int64 userId, String nickname);
-    Task<ErrorCode> LeaveRoom(Int16 roomId, Int16 userId, String nickname);
-    Task<ErrorCode> SetUserReady(Int16 roomId, Int16 userId);
+    Task<ErrorCode> LeaveRoom(Int64 userId);
+    Task<ErrorCode> SetUserReady(Int16 roomId, Int64 userId);
 }

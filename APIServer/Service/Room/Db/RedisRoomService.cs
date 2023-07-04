@@ -18,8 +18,9 @@ public class RedisRoomDbService : IRoomDbService
     readonly StackExchange.Redis.IServer _server;
 
     readonly String SCRIPT_ROOM_LIST_UP = "local result = {}; for i=0, 50 do local title = redis.call('GET', 'room:' .. i .. ':title'); if title then local users = redis.call('ZCARD', 'room:' .. i .. ':users'); table.insert(result, i .. ':' .. title .. '-' .. users); end; end; return result;";
-    readonly String SCRIPT_ROOM_ENTER = "if redis.call('EXISTS', @KEY0) ~= 0 then return 103 end local title = redis.call('GET', @KEY1) if title == nil then return 101 end local data = redis.call('ZRANGE', @KEY2, 0, -1, 'WITHSCORES') local users = {} for i = 1, #data, 2 do local score = data[i + 1] local member = data[i] table.insert(users, score .. ':' .. member) end if #users >= 4 then return 102 end redis.call('SET', @KEY0, @ARGV1) redis.call('ZADD', @KEY2, @ARGV0, @ARGV2) local readys = redis.call('SMEMBERS', @KEY3) return title .. '\\n' .. table.concat(users, ' ') .. '\\n' .. table.concat(readys, ' ')";    //readonly String SCRIPT_ROOM_LEAVE= @"redis.call('DEL', 'user:@userId:room') 
-    readonly String SCRIPT_ROOM_LEAVE = @"redis.call('DEL', 'user:{0}:room') redis.call('ZREM', 'room:{1}:users', '{2}') redis.call('SREM', 'room:{1}:readys', '{0}') return ";
+    readonly String SCRIPT_ROOM_ENTER = "if redis.call('EXISTS', @KEY0) ~= 0 then return 103 end local title = redis.call('GET', @KEY2) if not title then return 101 end local userIds = redis.call('SMEMBERS', @KEY3) if #userIds >= 4 then return 102 end redis.call('SET', @KEY0, @ARGV2) redis.call('SET', @KEY1, @ARGV1) redis.call('SADD', @KEY3, @ARGV0) local usersInfo = {} userIds = redis.call('SMEMBERS', @KEY3) for i = 1, #userIds, 2 do table.insert(usersInfo, userIds[i] .. ':' .. redis.call('GET', 'user:' .. userIds[i] .. ':nickname')) end local readys = redis.call('SMEMBERS', @KEY4) return title .. '\t' .. table.concat(usersInfo, ' ') .. '\t' .. table.concat(readys, ' ')";
+    //readonly String SCRIPT_ROOM_LEAVE = "redis.call('DEL', 'user:{0}:room') redis.call('ZREM', 'room:{1}:users', '{2}') redis.call('SREM', 'room:{1}:readys', '{0}') return ";
+    readonly String SCRIPT_ROOM_LEAVE = "local roomId = redis.call('GET', @KEY0) if not roomId then return end redis.call('DEL', @KEY0) redis.call('SREM', 'room:' .. roomId .. ':users', @ARGV0) redis.call('SREM', 'room:' .. roomId .. ':readys', @ARGV0) return";
     //@"if redis.call('EXISTS', 'user:@userId:room') ~= 0 then return 103 end 
     //if redis.call('EXISTS', 'room:@roomId:title') == 0 then return 101 end 
     //local usersNum = redis.call('ZCARD', 'room:@roomId:users') 
@@ -82,11 +83,12 @@ public class RedisRoomDbService : IRoomDbService
             //RedisKey[] keys = { $"user:{userId}:room", $"room:{roomId}:title", $"room:{roomId}:users", $"room:{roomId}:readys" };
             //RedisValue[] argvs = { userId, roomId, nickname };
             Object test = new { 
-                KEY0 = (RedisKey)$"user:{userId}:room", 
-                KEY1 = (RedisKey)$"room:{roomId}:title", 
-                KEY2 = (RedisKey)$"room:{roomId}:users", 
-                KEY3 = (RedisKey)$"room:{roomId}:readys", 
-                ARGV0 = (RedisValue)userId, ARGV1 = (RedisValue)roomId, ARGV2 = (RedisValue)nickname  
+                KEY0 = (RedisKey)$"user:{userId}:room",
+                KEY1 = (RedisKey)$"user:{userId}:nickname",
+                KEY2 = (RedisKey)$"room:{roomId}:title", 
+                KEY3 = (RedisKey)$"room:{roomId}:users", 
+                KEY4 = (RedisKey)$"room:{roomId}:readys", 
+                ARGV0 = (RedisValue)userId, ARGV1 = (RedisValue)nickname, ARGV2 = (RedisValue)roomId
             };
             //var redisResult = await _lodedRoomEnter.EvaluateAsync(_db, keys, argvs);
             //var redisResult = await _db.ScriptEvaluateAsync(_, keys, argvs);
@@ -142,13 +144,17 @@ public class RedisRoomDbService : IRoomDbService
         }
     }
 
-    public async Task<ErrorCode> LeaveRoom(short roomId, short userId, String nickname)
+    public async Task<ErrorCode> LeaveRoom(Int64 userId)
     {
         try
         {
             //var prepared = LuaScript.Prepare(String.Format(SCRIPT_ROOM_LEAVE, userId, roomId, nickname));
             //var redisResult = _db.ScriptEvaluate(prepared);
-            var redisResult = _lodedRoomLeave.EvaluateAsync(_db);
+            Object test = new {
+                KEY0 = (RedisKey)$"user:{userId}:room",
+                ARGV0 = (RedisValue)userId
+            };
+            var redisResult = _lodedRoomLeave.EvaluateAsync(_db, test);
             if (redisResult == null)
             {
                 _logger.ZLogErrorWithPayload(new { func = "LeaveRoom", userId = userId }, "LeaveRoom return null");
@@ -164,7 +170,7 @@ public class RedisRoomDbService : IRoomDbService
     }
 
 
-    public Task<ErrorCode> SetUserReady(short roomId, short userId)
+    public Task<ErrorCode> SetUserReady(Int16 roomId, Int64 userId)
     {
         throw new NotImplementedException();
     }

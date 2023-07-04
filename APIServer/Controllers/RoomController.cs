@@ -1,6 +1,5 @@
 ﻿using APIServer.Controllers.ReqResModels;
 using APIServer.GanaricModels;
-using APIServer.Service;
 using APIServer.Service.Room;
 using APIServer.Service.Session;
 using APIServer.Service.Session.Model;
@@ -28,14 +27,13 @@ public class RoomController : ControllerBase
     readonly ISessionService _session;
     readonly IRoomDbService _roomDbService;
     readonly RoomService _roomService;
-    readonly String _clientVersion;
-    byte[] _buffer = new byte[1024];
+
 
     public RoomController(IConfiguration config, ILogger<UserInfoController> logger, IRoomDbService roomDbService, RoomService roomService, ISessionService session)
     {
         _logger = logger;
         _session = session;
-        _clientVersion = config.GetSection("Versions")["Client"];
+
         _roomDbService = roomDbService;
         _roomService = roomService;
     }
@@ -61,16 +59,7 @@ public class RoomController : ControllerBase
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
             using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-
-
-
-
-
-            RoomEnterRequest request = new RoomEnterRequest();
-            var receiveResult = await webSocket.ReceiveAsync(
-                new ArraySegment<byte>(_buffer), CancellationToken.None);
-            request.Deserialize(_buffer);
-            await _roomService.ProcessRoomRequests(webSocket, _buffer);
+            await _roomService.ProcessRoomRequests(webSocket);
         }
         else
         {
@@ -79,38 +68,28 @@ public class RoomController : ControllerBase
     }
 
 
-    [HttpPost("Leave")]
-    public async Task<RoomLeaveResponse> Leave(RoomLeaveRequest request)
-    {
-        var response = new RoomLeaveResponse();
-        response.errorCode = await _roomDbService.LeaveRoom(0, 10, "User H");
-        return response;
-    }
+    //[HttpPost("Leave")]
+    //public async Task<RoomLeaveResponse> Leave(RoomLeaveRequest request)
+    //{
+    //    var response = new RoomLeaveResponse();
+    //    response.errorCode = await _roomDbService.LeaveRoom(0, 10, "User H");
+    //    return response;
+    //}
 
-    async Task<(ErrorCode, SessionModel?)> GetSession(String userAssignedId)
-    {
-        var (errorCode, userInfo) = await _session.GetSession(userAssignedId);
-        if (errorCode != ErrorCode.None || userInfo == null)
-        {
-            return (errorCode, null);
-        }
-        return (errorCode, userInfo);
-    }
+    //async Task<ErrorCode> UserRoomEnter((RoomReqUserInfo, Int16) input)
+    //{
+    //    return ErrorCode.None;
+    //}
 
-    async Task<ErrorCode> UserRoomEnter((RoomReqUserInfo, Int16) input)
-    {
-        return ErrorCode.None;
-    }
+    //async Task<ErrorCode> UserRoomLeave((RoomReqUserInfo, Int16) input)
+    //{
+    //    return ErrorCode.None;
+    //}
 
-    async Task<ErrorCode> UserRoomLeave((RoomReqUserInfo, Int16) input)
-    {
-        return ErrorCode.None;
-    }
-
-    async Task<ErrorCode> UserReady((RoomReqUserInfo, Int16) input)
-    {
-        return ErrorCode.None;
-    }
+    //async Task<ErrorCode> UserReady((RoomReqUserInfo, Int16) input)
+    //{
+    //    return ErrorCode.None;
+    //}
 
 
 }
