@@ -53,6 +53,7 @@ public class RedisSessionService : ISessionService
         {
             var keyString = GenerateSessionKey(userAssignedId);
             var redisString = new RedisString<SessionModel>(_redisConnection, keyString, TimeSpan.FromHours(1));
+            RedisHashSet<SessionModel> redisSet = new RedisHashSet<SessionModel>(_redisConnection, "Session", TimeSpan.FromHours(1));
             var session = await redisString.GetAsync();
             if (session.HasValue == false)
             {

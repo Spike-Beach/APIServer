@@ -25,4 +25,11 @@ public enum ErrorCode : Int16
     WorngClientVersion = 40,
     WorngMasterDataVersion = 41,
     InvalidUserData = 42,
+
+    // room
+    RoomDbError = 100,
+    RoomNotExist = 101,
+    RoomFull = 102,
+    RoomAlreadyIn = 103,
+    InvalidPacketForm = 104,
 }

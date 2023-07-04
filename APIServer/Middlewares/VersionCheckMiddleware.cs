@@ -20,7 +20,7 @@ public class VersionCheckMiddleware
     public async Task Invoke(HttpContext context)
     {
         String path = context.Request.Path;
-        if (!(path.StartsWith("/Register")))
+        if (!(path.StartsWith("/Register") || path.Contains("/ws")))
         {
             context.Request.EnableBuffering();
             using (var streamReader = new StreamReader(context.Request.Body, Encoding.UTF8, true, 1024, true))

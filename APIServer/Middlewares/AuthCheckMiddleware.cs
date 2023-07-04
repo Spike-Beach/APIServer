@@ -3,6 +3,7 @@ using APIServer.Service.Session;
 using APIServer.Service.Session.Model;
 using System.Text;
 using System.Text.Json;
+using System.Net.WebSockets;
 using ZLogger;
 
 namespace DungeonFarming.Middleware;
@@ -22,7 +23,7 @@ public class AuthCheckMiddleware
     public async Task Invoke(HttpContext context)
     {
         String path = context.Request.Path;
-        if (path.StartsWith("/Register") || path.StartsWith("/Login"))
+        if (path.StartsWith("/Register") || path.StartsWith("/Login") || path.Contains("/ws"))
         {
             await _next(context);
             return;
