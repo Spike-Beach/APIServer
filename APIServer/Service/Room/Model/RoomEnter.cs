@@ -11,7 +11,7 @@ public class RoomEnterRequest : RequestHeader
     public string clientVersion { get; set; }
     public short roomId { get; set; }
 
-    public byte[] Serialize()
+    public override byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
         bytes.AddRange(base.Serialize());

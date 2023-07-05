@@ -8,6 +8,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
+using ZLogger;
+using static Humanizer.In;
 
 namespace APIServer.Service.Room;
 
@@ -15,6 +17,7 @@ public class CustomWebSocket
 {
     public WebSocket webSocket { get; set; }
     public long? userId { get; set; }
+    public String nickName { get; set; }
     public byte[] buffer { get; set; } = new byte[1024];
 
 }
@@ -34,15 +37,16 @@ public class RoomService
         _roomDb = roomService;
         _funcDic = new Dictionary<PacketId, Func<CustomWebSocket, Task<ErrorCode>>>
         {
-            { PacketId.RoomEnter, userEnterRoom },
-            { PacketId.RoomLeave, userLeaveRoom }
-            //{ PacketId.RoomReady, userReady },
+            { PacketId.RoomEnter, UserEnterRoom },
+            { PacketId.RoomLeave, UserLeaveRoom },
+            { PacketId.RoomReady, UserReady },
+            { PacketId.RoomReady, UserUnready }
         };
         _clientVersion = config.GetSection("Versions")["Client"];
         _logger = logger;
     }
 
-    bool CheckUserStatus(long UserId, PacketId packetId)
+    bool CheckUserStatus(Int64 UserId, PacketId packetId)
     {
         // 방 나가기 및 레디 기능은 유저가 있어야함
         if (packetId == PacketId.RoomReady && _socketsDic.ContainsKey(UserId) == true)
@@ -58,6 +62,7 @@ public class RoomService
         {
             return true;
         }
+        _logger.ZLogErrorWithPayload(new { UserId, packetId }, "Invalid User Status");
         return false;
     }
 
@@ -79,12 +84,13 @@ public class RoomService
             sockHeader.Deserialize(cWs.buffer);
             if (sockHeader.PacketId != (short)PacketId.RoomEnter)
             {
+                // 예외를 사용할 때 : 일반적인 흐름에 부합하지 않을때.
                 throw new ArgumentException("Invalid Room Status");
             }
 
             if (_funcDic.TryGetValue((PacketId)sockHeader.PacketId, out var func) == false)
             {
-                throw new ArgumentException("CRITIAL");
+                throw new ArgumentException("Invalid PacketId");
             }
 
             var errorCode = await func(cWs);
@@ -96,13 +102,12 @@ public class RoomService
 
             while (!webSocket.CloseStatus.HasValue)
             {
-                receiveResult = await webSocket.ReceiveAsync(
-                    new ArraySegment<byte>(cWs.buffer), CancellationToken.None);
+                receiveResult = await webSocket.ReceiveAsync( new ArraySegment<byte>(cWs.buffer), CancellationToken.None);
                 sockHeader.Deserialize(cWs.buffer);
                 if (_funcDic.TryGetValue((PacketId)sockHeader.PacketId, out func) == false)
                 {
                     await waitSockClose(cWs, errorCode);
-                    return errorCode;
+                    throw new ArgumentException("Invalid PacketId");
                 }
                 errorCode = await func(cWs);
                 if (errorCode == ErrorCode.RoomLeaveSuccess)
@@ -119,24 +124,23 @@ public class RoomService
         }
         catch (Exception ex)
         {
-            // 로깅
+            _logger.ZLogWarningWithPayload(new { userId = cWs.userId, ex.Message, ex.StackTrace }, "ProcessRoomRequests Exception");
             await waitSockClose(cWs, ErrorCode.InvalidPacketForm);
         }
         return ErrorCode.None;
     }
 
-    public async Task<ErrorCode> userEnterRoom(CustomWebSocket cWs)
+    public async Task<ErrorCode> UserEnterRoom(CustomWebSocket cWs)
     {
         WebSocket sock;
-
         var request = new RoomEnterRequest();
         request.Deserialize(cWs.buffer);
+
         var (errorCode, userInfoSession) = await GetSession(request.userAssignedId);
         if (errorCode != ErrorCode.None || userInfoSession == null)
         {
             return errorCode;
         }
-
         if (request.token.Equals(userInfoSession.token) != true)
         {
             return ErrorCode.InvalidToken;
@@ -147,6 +151,7 @@ public class RoomService
         }
 
         cWs.userId = userInfoSession.userId;
+        cWs.nickName = userInfoSession.nickname;
         var (rtErrorCode, roomIntoString) = await _roomDb.EnterRoom(request.roomId, cWs.userId.Value, userInfoSession.nickname);
         if (rtErrorCode != ErrorCode.None || roomIntoString == null)
         {
@@ -155,39 +160,93 @@ public class RoomService
 
         if (_socketsDic.TryAdd(cWs.userId.Value, cWs.webSocket) == false)
         {
-            return ErrorCode.InvalidUserData;
+            // 로깅
+            return ErrorCode.RoomDbError;
         }
-        var userIds = ParsingUserId(roomIntoString);
-        string msg = "hello " + cWs.userId.ToString();
+
+        var (roomInfoString, userIds) = ParseString(roomIntoString);
+        await cWs.webSocket.SendAsync(Encoding.UTF8.GetBytes(roomInfoString), WebSocketMessageType.Text, true, CancellationToken.None);
         //CancellationTokenSource cts = new CancellationTokenSource();
         //cts.CancelAfter(TimeSpan.FromSeconds(60));
+        string msg = "Enter:" + cWs.nickName;
         await SendInRoomAsync(userIds, Encoding.UTF8.GetBytes(msg), CancellationToken.None);
         return ErrorCode.None;
     }
 
-    public async Task<ErrorCode> userLeaveRoom(CustomWebSocket cWs)
+    public async Task<ErrorCode> UserLeaveRoom(CustomWebSocket cWs)
     {
         // cWs유효성 검증
         if (cWs.userId == null)
         {
-
+            _logger.ZLogCritical("userLeaveRoom no userId");
+            return ErrorCode.RoomDbError;
         }
         else if (_socketsDic.TryGetValue(cWs.userId.Value, out var ws) == false || ws.Equals(cWs.webSocket) == false)
         {
-
+            _logger.ZLogCriticalWithPayload(new { userId = cWs.userId }, "userLeaveRoom userId not saved in dic");
+            return ErrorCode.RoomDbError;
         }
 
         RoomLeaveRequest request = new RoomLeaveRequest();
         request.Deserialize(cWs.buffer);
-        var errorCode = await _roomDb.LeaveRoom(cWs.userId.Value);
-        if (errorCode == ErrorCode.None)
+        var (errorCode, userIds) = await _roomDb.LeaveRoom(cWs.userId.Value, cWs.nickName);
+        if (errorCode == ErrorCode.None && userIds != null)
         {
-            errorCode = ErrorCode.RoomLeaveSuccess;
+            string msg = "Leave:" + cWs.nickName;
+            await SendInRoomAsync(userIds, Encoding.UTF8.GetBytes(msg), CancellationToken.None);
         }
         return errorCode;
     }
 
-    async Task SendInRoomAsync(List<long> userIdArr, byte[] Msg, CancellationToken token)
+    public async Task<ErrorCode> UserReady(CustomWebSocket cWs)
+    {
+        if (cWs.userId == null)
+        {
+            _logger.ZLogCritical("userLeaveRoom no userId");
+            return ErrorCode.RoomDbError;
+        }
+        else if (_socketsDic.TryGetValue(cWs.userId.Value, out var ws) == false || ws.Equals(cWs.webSocket) == false)
+        {
+            _logger.ZLogCriticalWithPayload(new { userId = cWs.userId }, "userLeaveRoom userId not saved in dic");
+            return ErrorCode.RoomDbError;
+        }
+
+        UserReadyRequest request = new UserReadyRequest();
+        request.Deserialize(cWs.buffer);
+        var (errorCode, userIds) = await _roomDb.SetUserReady(cWs.userId.Value, cWs.nickName, request.team);
+        if (errorCode == ErrorCode.None && userIds != null)
+        {
+            string msg = "Ready:" + cWs.nickName;
+            await SendInRoomAsync(userIds, Encoding.UTF8.GetBytes(msg), CancellationToken.None);
+        }
+        return errorCode;
+    }
+
+    public async Task<ErrorCode> UserUnready(CustomWebSocket cWs)
+    {
+        if (cWs.userId == null)
+        {
+            _logger.ZLogCritical("userLeaveRoom no userId");
+            return ErrorCode.RoomDbError;
+        }
+        else if (_socketsDic.TryGetValue(cWs.userId.Value, out var ws) == false || ws.Equals(cWs.webSocket) == false)
+        {
+            _logger.ZLogCriticalWithPayload(new { userId = cWs.userId }, "userLeaveRoom userId not saved in dic");
+            return ErrorCode.RoomDbError;
+        }
+
+        UserReadyRequest request = new UserReadyRequest();
+        request.Deserialize(cWs.buffer);
+        var (errorCode, userIds) = await _roomDb.SetUserUnready(cWs.userId.Value, cWs.nickName, request.team);
+        if (errorCode == ErrorCode.None && userIds != null)
+        {
+            string msg = "Unready:" + cWs.nickName;
+            await SendInRoomAsync(userIds, Encoding.UTF8.GetBytes(msg), CancellationToken.None);
+        }
+        return errorCode;
+    }
+
+    async Task SendInRoomAsync(List<Int64> userIdArr, byte[] Msg, CancellationToken token)
     {
         WebSocket ws;
         try
@@ -210,59 +269,22 @@ public class RoomService
         }
     }
 
-    static List<long> ParsingUserId(string roomEnterString)
+
+    static (string, List<Int64>) ParseString(string input)
     {
-        List<long> numbers = new List<long>();
+        string[] parts = input.Split('\t');
 
-        int lastNewLineIndex = roomEnterString.IndexOf('\t');
-        if (lastNewLineIndex != -1 && lastNewLineIndex + 1 < roomEnterString.Length)
-        {
-            string usersString = roomEnterString.Substring(lastNewLineIndex + 1);
-            string[] usersStrings = usersString.Split(' ');
+        string title = parts[0];
+        string users = parts[1];
+        string aTeamReadyUsers = parts[2];
+        string bTeamReadyUsers = parts[3];
+        string allUserIds = parts[4];
 
-            foreach (string userChunk in usersStrings)
-            {
-                string[] userIdAndNick = userChunk.Split(':');
-                if (long.TryParse(userIdAndNick[0], out long number))
-                {
-                    numbers.Add(number);
-                }
-                else
-                {
-                    // Parsing failed for a number, handle the error or skip the number.
-                }
-            }
-        }
-        else
-        {
-            // Invalid input format, handle the error.
-        }
-        return numbers;
+        var userIds = allUserIds.Split(' ').Select(long.Parse).ToList();
+
+        return ($"{title}\t{users}\t{aTeamReadyUsers}\t{bTeamReadyUsers}", userIds);
     }
 
-    //static async Task Echo(WebSocket webSocket)
-    //{
-    //    var buffer = new byte[1024 * 4];
-    //    var receiveResult = await webSocket.ReceiveAsync(
-    //        new ArraySegment<byte>(buffer), CancellationToken.None);
-
-    //    while (!receiveResult.CloseStatus.HasValue)
-    //    {
-    //        await webSocket.SendAsync(
-    //            new ArraySegment<byte>(buffer, 0, receiveResult.Count),
-    //            receiveResult.MessageType,
-    //            receiveResult.EndOfMessage,
-    //            CancellationToken.None);
-
-    //        receiveResult = await webSocket.ReceiveAsync(
-    //            new ArraySegment<byte>(buffer), CancellationToken.None);
-    //    }
-
-    //    await webSocket.CloseAsync(
-    //        receiveResult.CloseStatus.Value,
-    //        receiveResult.CloseStatusDescription,
-    //        CancellationToken.None);
-    //}
     async Task waitSockClose(CustomWebSocket cWs, ErrorCode errorCode)
     {
         var currentTime = DateTime.Now;

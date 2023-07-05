@@ -6,7 +6,7 @@ public class RequestHeader
     public int PacketSize { get; set; }
     public int PacketId { get; set; }
 
-    public byte[] Serialize()
+    public virtual byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
         bytes.AddRange(MAGIC);
