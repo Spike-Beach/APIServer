@@ -2,27 +2,31 @@
 
 public enum ErrorCode : Int16
 {
-    // Generic Error : 0 ~ 10
+    // Generic Error : 0 ~ 49
     None = 0,
     AccountDbError = 1,
     SessionError = 2,
-    ServerError = 3,
-    InvalidBodyForm = 4,
-    GameDbError = 5,
-    purchaseDbError = 6,
+    RoomDbError = 3,
+    GameDbError = 4,
+    ServerError = 5,
+    InvalidBodyForm = 6,
+    InvalidPacketForm = 7,
 
-    // Auth 10 ~ 99
-    //  ID : 10 ~ 19, Token : 20 ~ 29, Password : 30 ~ 39
-    //  Version : 40 ~ 49
-    AreadyLogin = 10,
-    InvalidIdFormat = 11,
-    DuplicatedId = 12,
-    InvalidId = 13,
-    InvalidItemId = 14,
-    InvalidToken = 20,
-    InvalidPasswordFormat = 30,
-    WorngPassword = 31,
-    WorngClientVersion = 40,
-    WorngMasterDataVersion = 41,
-    InvalidUserData = 42,
+    // Auth Error : 50 ~ 99
+    InvalidId = 50,
+    InvalidIdFormat = 51,
+    DuplicatedId = 52,
+    InvalidToken = 53,
+    AreadyLogin = 54,
+    WorngPassword = 55,
+    WorngClientVersion = 56,
+
+    // room Error : 100 ~
+    RoomLeaveSuccess = 100,
+    RoomNotExist = 101,
+    RoomFull = 102,
+    UserAlreadyInRoom = 103,
+    UserNotInRoom = 104,
+    UserAlreadyReady = 105,
+    UserNotReady = 106
 }

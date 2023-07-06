@@ -44,7 +44,9 @@ namespace APIServer.Controllers
             {
                 userId = account.user_id,
                 userAssignedId = account.user_assigned_id,
+                nickname = account.nickname,
                 token = response.token,
+                status = UserStatus.Login
             });
             if (response.errorCode != ErrorCode.None)
             {
