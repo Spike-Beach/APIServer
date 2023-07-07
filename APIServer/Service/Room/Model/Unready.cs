@@ -3,12 +3,12 @@ using System.Text;
 
 namespace APIServer.Service.Room.Model;
 
-public class RoomLeaveRequest : RequestHeader
+public class UnreadyRequest : RequestHeader
 {
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(0, (Int32)PacketIdDef.RoomLeaveReq));
+        bytes.AddRange(base.Serialize(0, (Int32)PacketIdDef.RoomUnreadyReq));
         return bytes.ToArray();
     }
 
@@ -18,12 +18,12 @@ public class RoomLeaveRequest : RequestHeader
     }
 }
 
-public class RoomLeaveResponse : ResponseHeader
+public class UnreadyResponse : ResponseHeader
 {
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(0, (Int32)PacketIdDef.RoomLeaveRes));
+        bytes.AddRange(base.Serialize(0, (Int32)PacketIdDef.RoomUnreadyRes));
         return bytes.ToArray();
     }
 
@@ -33,20 +33,22 @@ public class RoomLeaveResponse : ResponseHeader
     }
 }
 
-public class RoomLeaveNotify : NotifyHeader
+public class UnReadyNotify : NotifyHeader
 {
-    public String leaveUserNick { get; set; }
+    public String teamString { get; set; }
+
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(leaveUserNick.Length + 1, (Int32)PacketIdDef.RoomLeaveNtf));
-        bytes.AddRange(Encoding.UTF8.GetBytes(leaveUserNick + '\0'));
+        bytes.AddRange(base.Serialize(teamString.Length + 1, (Int32)PacketIdDef.RoomUnreadyNtf));
+        bytes.AddRange(Encoding.UTF8.GetBytes(teamString + '\0'));
         return bytes.ToArray();
     }
+
     public override void Deserialize(byte[] data)
     {
         base.Deserialize(data);
         int offset = MAGIC.Length + sizeof(int) + sizeof(int);
-        leaveUserNick = ReadString(data, ref offset);
+        teamString = ReadString(data, ref offset);
     }
 }

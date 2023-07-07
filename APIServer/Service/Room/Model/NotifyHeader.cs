@@ -2,20 +2,20 @@
 
 namespace APIServer.Service.Room.Model;
 
-public class RequestHeader
+public class NotifyHeader
 {
     public readonly byte[] MAGIC = { 0x0C, 0x0B }; // 매직. 피드(\f)와 수직 탭(\v)
-    public int PacketSize { get; set; }
-    public int PacketId { get; set; }
+    public Int32 packetSize { get; set; }
+    public Int32 packetId { get; set; }
 
     protected byte[] Serialize(Int32 bodySize, Int32 fullPacketId)
     {
         List<byte> bytes = new List<byte>();
-        PacketSize = MAGIC.Length + sizeof(Int32) + sizeof(Int32) + bodySize;
-        PacketId = fullPacketId;
+        packetSize = MAGIC.Length + sizeof(Int32) + sizeof(Int32) + bodySize;
+        packetId = fullPacketId;
         bytes.AddRange(MAGIC);
-        bytes.AddRange(BitConverter.GetBytes(PacketSize));
-        bytes.AddRange(BitConverter.GetBytes(PacketId));
+        bytes.AddRange(BitConverter.GetBytes(packetSize));
+        bytes.AddRange(BitConverter.GetBytes(packetId));
         return bytes.ToArray();
     }
 
@@ -35,10 +35,10 @@ public class RequestHeader
         }
         offset += MAGIC.Length;
 
-        PacketSize = BitConverter.ToInt32(data, offset);
+        packetSize = BitConverter.ToInt32(data, offset);
         offset += sizeof(int);
 
-        PacketId = BitConverter.ToInt32(data, offset);
+        packetId = BitConverter.ToInt32(data, offset);
     }
 
     protected String ReadString(byte[] data, ref int offset)

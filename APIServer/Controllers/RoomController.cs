@@ -12,11 +12,21 @@ using System.Text.Json;
 
 namespace APIServer.Controllers;
 
-public enum PacketId : Int32
+public enum PacketIdDef : Int32
 {
-    RoomEnter = 10,
-    RoomLeave = 11,
-    RoomReady = 12
+    GenericError = 0,
+    RoomEnterReq = 10,
+    RoomEnterRes = 11,
+    RoomEnterNtf = 12,
+    RoomLeaveReq = 13,
+    RoomLeaveRes = 14,
+    RoomLeaveNtf = 15,
+    RoomReadyReq = 16,
+    RoomReadyRes = 17,
+    RoomReadyNtf = 18,
+    RoomUnreadyReq = 19,
+    RoomUnreadyRes = 20,
+    RoomUnreadyNtf = 21,
 }
 
 [Route("[controller]")]
