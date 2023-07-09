@@ -10,16 +10,16 @@ public class ReadyRequest : RequestHeader
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(sizeof(Team), (Int32)PacketIdDef.RoomReadyReq));
+        bytes.AddRange(base.Serialize((Int32)PacketIdDef.RoomReadyReq));
         bytes.AddRange(BitConverter.GetBytes((int)team));
         return bytes.ToArray();
     }
 
-    public override void Deserialize(byte[] data)
+    public override Int32 Deserialize(byte[] data)
     {
-        base.Deserialize(data);
-        int offset = MAGIC.Length + sizeof(int) + sizeof(int);
+        int offset = base.Deserialize(data);
         team = (Team)BitConverter.ToInt32(data, offset);
+        return offset + sizeof(Team);
     }
 }
 
@@ -30,13 +30,13 @@ public class ReadyResponse : ResponseHeader
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(0, (Int32)PacketIdDef.RoomReadyRes));
+        bytes.AddRange(base.Serialize((Int32)PacketIdDef.RoomReadyRes));
         return bytes.ToArray();
     }
 
-    public override void Deserialize(byte[] data)
+    public override Int32 Deserialize(byte[] data)
     {
-        base.Deserialize(data);
+        return base.Deserialize(data);
     }
 }
 
@@ -46,16 +46,16 @@ public class ReadyNotify : NotifyHeader
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(teamString.Length + 1, (Int32)PacketIdDef.RoomReadyNtf));
+        bytes.AddRange(base.Serialize((Int32)PacketIdDef.RoomReadyNtf));
         bytes.AddRange(Encoding.UTF8.GetBytes(teamString + '\0'));
         return bytes.ToArray();
     }
 
-    public override void Deserialize(byte[] data)
+    public override Int32 Deserialize(byte[] data)
     {
-        base.Deserialize(data);
-        int offset = MAGIC.Length + sizeof(int) + sizeof(int);
+        int offset = base.Deserialize(data);
         teamString = ReadString(data, ref offset);
+        return offset;
     }
 }
 

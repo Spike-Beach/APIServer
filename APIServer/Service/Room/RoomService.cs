@@ -1,4 +1,5 @@
 ﻿using APIServer.Controllers;
+using APIServer.Controllers.ReqResModels;
 using APIServer.GanaricModels;
 using APIServer.Service.Room.Model;
 using APIServer.Service.Session;
@@ -127,13 +128,13 @@ public class RoomService
 
             // 맨처음은 방 입장이여야만 한다.
             sockHeader.Deserialize(cWs.buffer);
-            if (sockHeader.PacketId != (short)PacketIdDef.RoomEnterReq)
+            if (sockHeader.packetId != (short)PacketIdDef.RoomEnterReq)
             {
                 // 예외를 사용할 때 : 일반적인 흐름에 부합하지 않을때.
                 throw new ArgumentException("Invalid Room Status");
             }
 
-            if (_funcDic.TryGetValue((PacketIdDef)sockHeader.PacketId, out var func) == false)
+            if (_funcDic.TryGetValue((PacketIdDef)sockHeader.packetId, out var func) == false)
             {
                 throw new ArgumentException("Invalid PacketId");
             }
@@ -149,13 +150,13 @@ public class RoomService
             {
                 receiveResult = await webSocket.ReceiveAsync( new ArraySegment<byte>(cWs.buffer), CancellationToken.None);
                 sockHeader.Deserialize(cWs.buffer);
-                if (_funcDic.TryGetValue((PacketIdDef)sockHeader.PacketId, out func) == false)
+                if (_funcDic.TryGetValue((PacketIdDef)sockHeader.packetId, out func) == false)
                 {
                     await waitSockClose(cWs, errorCode);
                     throw new ArgumentException("Invalid PacketId");
                 }
                 errorCode = await func(cWs);
-                if (errorCode == ErrorCode.RoomLeaveSuccess)
+                if (errorCode == ErrorCode.RoomLeaveSuccess || errorCode == ErrorCode.RoomDeleted)
                 {
                     await waitSockClose(cWs, errorCode);
                     break ;
@@ -237,6 +238,8 @@ public class RoomService
         request.Deserialize(cWs.buffer);
         var (errorCode, orgInfoStr) = await _roomDb.LeaveRoom(cWs.userId.Value, cWs.nickName);
         _socketsDic.TryRemove(cWs.userId.Value, out var sock);
+        RoomLeaveResponse response = new RoomLeaveResponse() { errorCode = errorCode };
+        await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
         if (errorCode == ErrorCode.RoomLeaveSuccess && orgInfoStr != null)
         {
             RoomInfo roomInfo = new RoomInfo(orgInfoStr);
@@ -341,7 +344,7 @@ public class RoomService
         var currentTime = DateTime.Now;
         short closeCount = 0;
         ResponseHeader response = new ResponseHeader() { errorCode = errorCode };
-        await cWs.webSocket.SendAsync(response.Serialize(0, (Int32)PacketIdDef.GenericError), WebSocketMessageType.Binary, true, CancellationToken.None);
+        await cWs.webSocket.SendAsync(response.Serialize((Int32)PacketIdDef.GenericError), WebSocketMessageType.Binary, true, CancellationToken.None);
         while (!cWs.webSocket.CloseStatus.HasValue)
         {
             if (closeCount == 3)

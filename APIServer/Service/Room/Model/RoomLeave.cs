@@ -8,13 +8,13 @@ public class RoomLeaveRequest : RequestHeader
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(0, (Int32)PacketIdDef.RoomLeaveReq));
+        bytes.AddRange(base.Serialize((Int32)PacketIdDef.RoomLeaveReq));
         return bytes.ToArray();
     }
 
-    public override void Deserialize(byte[] data)
+    public override Int32 Deserialize(byte[] data)
     {
-        base.Deserialize(data);
+        return base.Deserialize(data);
     }
 }
 
@@ -23,13 +23,13 @@ public class RoomLeaveResponse : ResponseHeader
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(0, (Int32)PacketIdDef.RoomLeaveRes));
+        bytes.AddRange(base.Serialize((Int32)PacketIdDef.RoomLeaveRes));
         return bytes.ToArray();
     }
 
-    public override void Deserialize(byte[] data)
+    public override Int32 Deserialize(byte[] data)
     {
-        base.Deserialize(data);
+        return base.Deserialize(data);
     }
 }
 
@@ -39,14 +39,14 @@ public class RoomLeaveNotify : NotifyHeader
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
-        bytes.AddRange(base.Serialize(leaveUserNick.Length + 1, (Int32)PacketIdDef.RoomLeaveNtf));
+        bytes.AddRange(base.Serialize((Int32)PacketIdDef.RoomLeaveNtf));
         bytes.AddRange(Encoding.UTF8.GetBytes(leaveUserNick + '\0'));
         return bytes.ToArray();
     }
-    public override void Deserialize(byte[] data)
+    public override Int32 Deserialize(byte[] data)
     {
-        base.Deserialize(data);
-        int offset = MAGIC.Length + sizeof(int) + sizeof(int);
+        int offset = base.Deserialize(data);
         leaveUserNick = ReadString(data, ref offset);
+        return offset;
     }
 }

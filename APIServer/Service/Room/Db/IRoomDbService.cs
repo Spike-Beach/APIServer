@@ -13,7 +13,6 @@ public interface IRoomDbService
 {
     ErrorCode SetScripts();
     Task<(ErrorCode, List<String>?)> GetRoomList();
-    //Task<(ErrorCode, Int16 roomId)> CreateRoom(String roomTitle);
     Task<(ErrorCode, String?)> EnterRoom(Int16 roomId, Int64 userId, String nickname);
     Task<(ErrorCode, String?)> LeaveRoom(Int64 userId, String nickname);
     Task<(ErrorCode, String?)> SetUserReady(Int64 userId, String nickname, Team team);
