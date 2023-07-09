@@ -28,5 +28,7 @@ public enum ErrorCode : Int16
     UserAlreadyInRoom = 103,
     UserNotInRoom = 104,
     UserAlreadyReady = 105,
-    UserNotReady = 106
+    UserNotReady = 106,
+    ExceedRoomMaxNum = 107,
+    RoomDeleted = 108,
 }

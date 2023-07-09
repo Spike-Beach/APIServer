@@ -2,9 +2,9 @@
 
 namespace APIServer.Service.Room.Model;
 
-public class RequestHeader
+public class NotifyHeader
 {
-    public int packetId { get; set; }
+    public Int32 packetId { get; set; }
 
     protected byte[] Serialize(Int32 fullPacketId)
     {
@@ -17,7 +17,7 @@ public class RequestHeader
     public virtual Int32 Deserialize(byte[] data)
     {
         packetId = BitConverter.ToInt32(data, 0);
-        return sizeof(Int32);
+        return sizeof(int);
     }
 
     protected String ReadString(byte[] data, ref int offset)
