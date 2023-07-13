@@ -38,6 +38,14 @@ public class MysqlGameDbService : IGameDbServcie
         {
             if (ex.Number == 1062) //duplicated id exception
             {
+                if (ex.Message.Contains("user_assigned_id"))
+                {
+                    return (ErrorCode.DuplicatedId, -1);
+                }
+                else if (ex.Message.Contains("nickname"))
+                {
+                    return (ErrorCode.DuplicatedNickname, -1);
+                }
                 return (ErrorCode.DuplicatedId, -1);
             }
             _logger.ZLogErrorWithPayload(ex, new { userAssignedId = userAssignedId }, "RegistAccount MYSQL_EXCEPTION");

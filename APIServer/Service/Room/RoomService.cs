@@ -243,7 +243,7 @@ public class RoomService
         if (errorCode == ErrorCode.RoomLeaveSuccess && orgInfoStr != null)
         {
             RoomInfo roomInfo = new RoomInfo(orgInfoStr);
-            RoomLeaveNotify notify = new RoomLeaveNotify() { leaveUserNick = cWs.nickName };
+            RoomLeaveNotify notify = new RoomLeaveNotify() { leaveInfoString = roomInfo.info4Client };
             await SendInRoomAsync(roomInfo.allUserIds, notify.Serialize(), CancellationToken.None);
         }
         return errorCode;
@@ -321,23 +321,6 @@ public class RoomService
             Console.WriteLine($"WebSocket error occurred: {ex.Message}");
         }
     }
-
-
-    //static (string, List<Int64>) ParseString(string input)
-    //{
-    //    //string[] parts = input.Split('\t');
-
-    //    //string title = parts[0];
-    //    //string users = parts[1];
-    //    //string aTeamReadyUsers = parts[2];
-    //    //string bTeamReadyUsers = parts[3];
-    //    //string allUserIds = parts[4];
-
-    //    String titile = input.Substring(input.IndexOf("\tT "), )
-    //    var userIds = allUserIds.Split(' ').Select(long.Parse).ToList();
-
-    //    return ($"{title}\t{users}\t{aTeamReadyUsers}\t{bTeamReadyUsers}", userIds);
-    //}
 
     async Task waitSockClose(CustomWebSocket cWs, ErrorCode errorCode)
     {

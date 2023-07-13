@@ -35,18 +35,18 @@ public class RoomLeaveResponse : ResponseHeader
 
 public class RoomLeaveNotify : NotifyHeader
 {
-    public String leaveUserNick { get; set; }
+    public String leaveInfoString { get; set; }
     public byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
         bytes.AddRange(base.Serialize((Int32)PacketIdDef.RoomLeaveNtf));
-        bytes.AddRange(Encoding.UTF8.GetBytes(leaveUserNick + '\0'));
+        bytes.AddRange(Encoding.UTF8.GetBytes(leaveInfoString + '\0'));
         return bytes.ToArray();
     }
     public override Int32 Deserialize(byte[] data)
     {
         int offset = base.Deserialize(data);
-        leaveUserNick = ReadString(data, ref offset);
+        leaveInfoString = ReadString(data, ref offset);
         return offset;
     }
 }
