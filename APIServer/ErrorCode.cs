@@ -32,4 +32,6 @@ public enum ErrorCode : Int16
     UserNotReady = 106,
     ExceedRoomMaxNum = 107,
     RoomDeleted = 108,
+    NotRoomHost = 109,
+    InvalidRoomStatus = 110,
 }

@@ -27,6 +27,9 @@ public enum PacketIdDef : Int32
     RoomUnreadyReq = 19,
     RoomUnreadyRes = 20,
     RoomUnreadyNtf = 21,
+    GameStartReq = 22,
+    GameStartRes = 23,
+    GameStartNtf = 24,
 }
 
 [Route("[controller]")]

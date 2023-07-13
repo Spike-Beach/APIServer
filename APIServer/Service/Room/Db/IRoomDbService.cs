@@ -17,4 +17,8 @@ public interface IRoomDbService
     Task<(ErrorCode, String?)> LeaveRoom(Int64 userId, String nickname);
     Task<(ErrorCode, String?)> SetUserReady(Int64 userId, String nickname, Team team);
     Task<(ErrorCode, String?)> SetUserUnready(Int64 userId, String nickname);
+
+    Task<(ErrorCode, String?)> GameStartCheck(Int64 userId, String nickname);
+
+    Task<ErrorCode> PubGameStart(String gameInfoString);
 }
