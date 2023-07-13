@@ -20,6 +20,7 @@ public enum ErrorCode : Int16
     AreadyLogin = 54,
     WorngPassword = 55,
     WorngClientVersion = 56,
+    DuplicatedNickname = 57,
 
     // room Error : 100 ~
     RoomLeaveSuccess = 100,
