@@ -26,6 +26,7 @@ builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 var roomService = app.Services.GetRequiredService<IRoomDbService>();
 roomService.SetScripts();
+roomService.Init();
 app.UseAuthorization();
 app.MapControllers();
 app.UseMiddleware<AuthCheckMiddleware>();
