@@ -19,7 +19,7 @@ public class CustomWebSocket
     public long? userId { get; set; }
     public String nickName { get; set; }
     public byte[] buffer { get; set; } = new byte[1024];
-
+    public ErrorCode errorCode { get; set; }
 }
 
 public class RoomInfo
@@ -174,17 +174,20 @@ public class RoomService
                 sockHeader.Deserialize(cWs.buffer);
                 if (_funcDic.TryGetValue((PacketIdDef)sockHeader.packetId, out var func) == false)
                 {
+                    cWs.errorCode = ErrorCode.InvalidPacketForm;
                     await waitSockClose(cWs);
                     throw new ArgumentException("Invalid PacketId");
                 }
                 var errorCode = await func(cWs);
                 if (errorCode == ErrorCode.RoomLeaveSuccess || errorCode == ErrorCode.RoomDeleted)
                 {
+                    cWs.errorCode = ErrorCode.InvalidPacketType;
                     await waitSockClose(cWs);
                     break;
                 }
                 else if (errorCode != ErrorCode.None)
                 {
+                    cWs.errorCode = ErrorCode.ServerError;
                     await waitSockClose(cWs);
                     return errorCode;
                 }
@@ -193,13 +196,8 @@ public class RoomService
         catch (Exception ex)
         {
             _logger.ZLogWarningWithPayload(new { userId = cWs.userId, ex.Message, ex.StackTrace }, "ProcessRoomRequests Exception");
-<<<<<<< Updated upstream
-            await waitSockClose(cWs, ErrorCode.InvalidPacketForm);
-=======
-            ResponseHeader response = new ResponseHeader() { errorCode = ErrorCode.InvalidPacketForm };
-            await cWs.webSocket.SendAsync(response.Serialize((Int32)PacketIdDef.GenericError), WebSocketMessageType.Binary, true, CancellationToken.None);
+            cWs.errorCode = ErrorCode.InvalidPacketForm;
             await waitSockClose(cWs);
->>>>>>> Stashed changes
         }
         return ErrorCode.None;
     }
@@ -326,50 +324,46 @@ public class RoomService
         }
         return errorCode;
     }
+    //public async Task<ErrorCode> GameStart(CustomWebSocket cWs)
+    //{
+    //    //
+    //    cWs.userId = 1;
+    //    cWs.nickName = "gyeon";
+    //    _socketsDic.TryAdd(1, cWs.webSocket);
+    //    //
+    //    if (cWs.userId == null)
+    //    {
+    //        _logger.ZLogCritical("GameStart no userId");
+    //        return ErrorCode.RoomDbError;
+    //    }
+    //    else if (_socketsDic.TryGetValue(cWs.userId.Value, out var ws) == false || ws.Equals(cWs.webSocket) == false)
+    //    {
+    //        _logger.ZLogCriticalWithPayload(new { userId = cWs.userId }, "GameStart userId not saved in dic");
+    //        return ErrorCode.RoomDbError;
+    //    }
 
-<<<<<<< Updated upstream
-=======
-    public async Task<ErrorCode> GameStart(CustomWebSocket cWs)
-    {
-        //
-        cWs.userId = 1;
-        cWs.nickName = "gyeon";
-        _socketsDic.TryAdd(1, cWs.webSocket);
-        //
-        if (cWs.userId == null)
-        {
-            _logger.ZLogCritical("GameStart no userId");
-            return ErrorCode.RoomDbError;
-        }
-        else if (_socketsDic.TryGetValue(cWs.userId.Value, out var ws) == false || ws.Equals(cWs.webSocket) == false)
-        {
-            _logger.ZLogCriticalWithPayload(new { userId = cWs.userId }, "GameStart userId not saved in dic");
-            return ErrorCode.RoomDbError;
-        }
+    //    GameStartRequest request = new GameStartRequest();
+    //    request.Deserialize(cWs.buffer);
+    //    var (errorCode, orgInfoStr) = await _roomDb.GameStartCheck(cWs.userId.Value, cWs.nickName);
+    //    GameStartResponse response = new GameStartResponse() { errorCode = errorCode };
+    //    await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
+    //    if (errorCode == ErrorCode.None && orgInfoStr != null)
+    //    {
+    //        GameStartNotify notify = new GameStartNotify() { gameInfoString = _gameServerInfoString };
+    //        RoomInfo roomInfo = new RoomInfo(orgInfoStr);
 
-        GameStartRequest request = new GameStartRequest();
-        request.Deserialize(cWs.buffer);
-        var (errorCode, orgInfoStr) = await _roomDb.GameStartCheck(cWs.userId.Value, cWs.nickName);
-        GameStartResponse response = new GameStartResponse() { errorCode = errorCode };
-        await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
-        if (errorCode == ErrorCode.None && orgInfoStr != null)
-        {
-            GameStartNotify notify = new GameStartNotify() { gameInfoString = _gameServerInfoString };
-            RoomInfo roomInfo = new RoomInfo(orgInfoStr);
+    //        var pubErrorCode = await _roomDb.PubGameStart(roomInfo.info4Client);
+    //        if (pubErrorCode != ErrorCode.None)
+    //        {
+    //            return pubErrorCode;
+    //        }
 
-            var pubErrorCode = await _roomDb.PubGameStart(roomInfo.info4Client);
-            if (pubErrorCode != ErrorCode.None)
-            {
-                return pubErrorCode;
-            }
+    //        await SendInRoomAsync(roomInfo.allUserIds, notify.Serialize(), CancellationToken.None);
+    //        return ErrorCode.None;
+    //    }
+    //    return errorCode;
+    //}
 
-            await SendInRoomAsync(roomInfo.allUserIds, notify.Serialize(), CancellationToken.None);
-            return ErrorCode.None;
-        }
-        return errorCode;
-    }
-
->>>>>>> Stashed changes
     async Task SendInRoomAsync(List<Int64> userIdArr, byte[] Msg, CancellationToken token)
     {
         WebSocket ws;
@@ -397,7 +391,7 @@ public class RoomService
     {
         var currentTime = DateTime.Now;
         short closeCount = 0;
-        ResponseHeader response = new ResponseHeader() { errorCode = errorCode };
+        ResponseHeader response = new ResponseHeader() { errorCode = cWs.errorCode };
         await cWs.webSocket.SendAsync(response.Serialize((Int32)PacketIdDef.GenericError), WebSocketMessageType.Binary, true, CancellationToken.None);
         while (!cWs.webSocket.CloseStatus.HasValue)
         {
