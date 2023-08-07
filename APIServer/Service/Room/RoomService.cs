@@ -130,51 +130,6 @@ public class RoomService
         CustomWebSocket cWs = new CustomWebSocket() { webSocket = webSocket };
         try
         {
-            //var receiveResult = await webSocket.ReceiveAsync(
-            //    new ArraySegment<byte>(cWs.buffer), CancellationToken.None);
-
-            //// 맨처음은 방 입장이여야만 한다.
-            //sockHeader.Deserialize(cWs.buffer);
-            //if (sockHeader.packetId != (short)PacketIdDef.RoomEnterReq)
-            //{
-            //    // 예외를 사용할 때 : 일반적인 흐름에 부합하지 않을때.
-            //    throw new ArgumentException("Invalid Room Status");
-            //}
-
-            //if (_funcDic.TryGetValue((PacketIdDef)sockHeader.packetId, out var func) == false)
-            //{
-            //    throw new ArgumentException("Invalid PacketId");
-            //}
-
-            //var errorCode = await func(cWs);
-            //if (errorCode != ErrorCode.None)
-            //{
-            //    await waitSockClose(cWs, errorCode);
-            //    return errorCode;
-            //}
-
-            //while (!webSocket.CloseStatus.HasValue)
-            //{
-            //    receiveResult = await webSocket.ReceiveAsync( new ArraySegment<byte>(cWs.buffer), CancellationToken.None);
-            //    sockHeader.Deserialize(cWs.buffer);
-            //    if (_funcDic.TryGetValue((PacketIdDef)sockHeader.packetId, out func) == false)
-            //    {
-            //        await waitSockClose(cWs, errorCode);
-            //        throw new ArgumentException("Invalid PacketId");
-            //    }
-            //    errorCode = await func(cWs);
-            //    if (errorCode == ErrorCode.RoomLeaveSuccess || errorCode == ErrorCode.RoomDeleted)
-            //    {
-            //        await waitSockClose(cWs, errorCode);
-            //        break ;
-            //    }
-            //    else if (errorCode != ErrorCode.None) 
-            //    {
-            //        await waitSockClose(cWs, errorCode);
-            //        return errorCode;
-            //    }
-            //}
-
             while (!webSocket.CloseStatus.HasValue)
             {
                 var receiveResult = await webSocket.ReceiveAsync(new ArraySegment<byte>(cWs.buffer), CancellationToken.None);
@@ -386,9 +341,11 @@ public class RoomService
 
         GameStartRequest request = new GameStartRequest();
         request.Deserialize(cWs.buffer);
+
         var (errorCode, orgInfoStr) = await _roomDb.GameStartCheck(cWs.userId.Value, cWs.nickName);
         GameStartResponse response = new GameStartResponse() { errorCode = errorCode };
         await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
+        
         if (errorCode == ErrorCode.None && orgInfoStr != null)
         {
             GameStartNotify notify = new GameStartNotify() { gameInfoString = _gameServerInfoString };
