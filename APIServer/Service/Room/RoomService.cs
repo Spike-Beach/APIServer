@@ -149,6 +149,7 @@ public class RoomService
                 }
                 else if (errorCode != ErrorCode.None)
                 {
+                    _logger.ZLogInformationWithPayload(new { userId = cWs.userId, errorCode = errorCode }, "ProcessRoomRequests ErrorCode");
                     cWs.errorCode = ErrorCode.ServerError;
                     await waitSockClose(cWs);
                     return errorCode;
@@ -173,14 +174,20 @@ public class RoomService
         var (errorCode, userInfoSession) = await GetSession(request.userAssignedId);
         if (errorCode != ErrorCode.None || userInfoSession == null)
         {
+            _logger.ZLogInformationWithPayload(new { userId = cWs.userId, errorCode = errorCode, userInfoSession = userInfoSession },
+                "UserEnterRoom errorCode != ErrorCode.None || userInfoSession == null");
             return errorCode;
         }
         if (request.token.Equals(userInfoSession.token) != true)
         {
+            _logger.ZLogInformationWithPayload(new { userId = cWs.userId, errorCode = errorCode, reqTok = request.token, ourTok = userInfoSession.token },
+                "UserEnterRoom invalid Token");
             return ErrorCode.InvalidToken;
         }
         else if (request.clientVersion.Equals(_clientVersion) != true)
         {
+            _logger.ZLogInformationWithPayload(new { userId = cWs.userId, errorCode = errorCode, version = request.clientVersion },
+                "UserEnterRoom invalid Token");
             return ErrorCode.WorngClientVersion;
         }
 
@@ -189,6 +196,8 @@ public class RoomService
         var (rtErrorCode, orgInfoStr) = await _roomDb.EnterRoom(request.roomId, cWs.userId.Value, userInfoSession.nickname);
         if (rtErrorCode != ErrorCode.None || orgInfoStr == null)
         {
+            _logger.ZLogInformationWithPayload(new { userId = cWs.userId, errorCode = errorCode, version = request.clientVersion },
+                "_roomDb.EnterRoom rtErrorCode != ErrorCode.None || orgInfoStr == null");
             return rtErrorCode;
         }
 
