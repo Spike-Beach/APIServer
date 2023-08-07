@@ -11,6 +11,7 @@ public enum ErrorCode : Int16
     ServerError = 5,
     InvalidBodyForm = 6,
     InvalidPacketForm = 7,
+    InvalidPacketType = 8,
 
     // Auth Error : 50 ~ 99
     InvalidId = 50,
