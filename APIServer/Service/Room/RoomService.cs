@@ -29,8 +29,12 @@ public class RoomInfo
     public Int64 hostId { get; }
     public List<Int64> teamAUserIds { get; }
     public List<Int64> teamBUserIds { get; }
-    public RoomInfo(String orgInfoString)
+    public RoomInfo(String? orgInfoString)
     {
+        if (orgInfoString == null)
+        {
+            return;
+        }
         string[] splitData = orgInfoString.Split("\t", StringSplitOptions.RemoveEmptyEntries);
 
         allUserIds = new List<long>();
@@ -51,36 +55,36 @@ public class RoomInfo
                     }
                 }
             }
-            else if (item.StartsWith("h"))
-            {
-                if (long.TryParse(item.Substring(1).Trim(), out long userId))
-                {
-                    hostId = userId;
-                }
-            }
-            else if (item.StartsWith("a"))
-            {
-                string[] userIdStrings = item.Substring(1).Trim().Split(' ');
-                foreach (string userIdString in userIdStrings)
-                {
-                    if (long.TryParse(userIdString, out long userId))
-                    {
-                        teamAUserIds.Add(userId);
-                    }
-                }
-            }
-            else if (item.StartsWith("b"))
-            {
-                string[] userIdStrings = item.Substring(1).Trim().Split(' ');
-                foreach (string userIdString in userIdStrings)
-                {
-                    if (long.TryParse(userIdString, out long userId))
-                    {
-                        teamBUserIds.Add(userId);
-                    }
-                }
-            }
-            else
+            //else if (item.StartsWith("h"))
+            //{
+            //    if (long.TryParse(item.Substring(1).Trim(), out long userId))
+            //    {
+            //        hostId = userId;
+            //    }
+            //}
+            //else if (item.StartsWith("a"))
+            //{
+            //    string[] userIdStrings = item.Substring(1).Trim().Split(' ');
+            //    foreach (string userIdString in userIdStrings)
+            //    {
+            //        if (long.TryParse(userIdString, out long userId))
+            //        {
+            //            teamAUserIds.Add(userId);
+            //        }
+            //    }
+            //}
+            //else if (item.StartsWith("b"))
+            //{
+            //    string[] userIdStrings = item.Substring(1).Trim().Split(' ');
+            //    foreach (string userIdString in userIdStrings)
+            //    {
+            //        if (long.TryParse(userIdString, out long userId))
+            //        {
+            //            teamBUserIds.Add(userId);
+            //        }
+            //    }
+            //}
+            else if (char.IsUpper(item[0]))
             {
                 info4Client += "\t" + item;
             }
@@ -95,7 +99,8 @@ public class RoomService
     readonly ILogger<RoomService> _logger;
     readonly ISessionService _session;
     readonly IRoomDbService _roomDb;
-    readonly string _clientVersion;
+    readonly String _clientVersion;
+    readonly String _gameServerInfoString;
 
     public RoomService(IConfiguration config, ISessionService session, IRoomDbService roomService, ILogger<RoomService> logger)
     {
@@ -106,9 +111,11 @@ public class RoomService
             { PacketIdDef.RoomEnterReq, UserEnterRoom },
             { PacketIdDef.RoomLeaveReq, UserLeaveRoom },
             { PacketIdDef.RoomReadyReq, UserReady },
-            { PacketIdDef.RoomUnreadyReq, UserUnready }
+            { PacketIdDef.RoomUnreadyReq, UserUnready },
+            { PacketIdDef.GameStartReq, GameStart }
         };
         _clientVersion = config.GetSection("Versions")["Client"];
+        _gameServerInfoString = config.GetSection("GameServer")["InfoString"];
         _logger = logger;
     }
 
@@ -364,6 +371,41 @@ public class RoomService
     //    return errorCode;
     //}
 
+    public async Task<ErrorCode> GameStart(CustomWebSocket cWs)
+    {
+        if (cWs.userId == null)
+        {
+            _logger.ZLogCritical("GameStart no userId");
+            return ErrorCode.RoomDbError;
+        }
+        else if (_socketsDic.TryGetValue(cWs.userId.Value, out var ws) == false || ws.Equals(cWs.webSocket) == false)
+        {
+            _logger.ZLogCriticalWithPayload(new { userId = cWs.userId }, "GameStart userId not saved in dic");
+            return ErrorCode.RoomDbError;
+        }
+
+        GameStartRequest request = new GameStartRequest();
+        request.Deserialize(cWs.buffer);
+        var (errorCode, orgInfoStr) = await _roomDb.GameStartCheck(cWs.userId.Value, cWs.nickName);
+        GameStartResponse response = new GameStartResponse() { errorCode = errorCode };
+        await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
+        if (errorCode == ErrorCode.None && orgInfoStr != null)
+        {
+            GameStartNotify notify = new GameStartNotify() { gameInfoString = _gameServerInfoString };
+            RoomInfo roomInfo = new RoomInfo(orgInfoStr);
+
+            var pubErrorCode = await _roomDb.PubGameStart(roomInfo.info4Client);
+            if (pubErrorCode != ErrorCode.None)
+            {
+                return pubErrorCode;
+            }
+
+            await SendInRoomAsync(roomInfo.allUserIds, notify.Serialize(), CancellationToken.None);
+            return ErrorCode.None;
+        }
+        return errorCode;
+    }
+
     async Task SendInRoomAsync(List<Int64> userIdArr, byte[] Msg, CancellationToken token)
     {
         WebSocket ws;
@@ -405,6 +447,7 @@ public class RoomService
         }
         if (cWs.userId != null)
         {
+            await _roomDb.LeaveRoom(cWs.userId.Value, cWs.nickName);
             _socketsDic.TryRemove(cWs.userId.Value, out var sock);
         }
     }

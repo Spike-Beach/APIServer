@@ -1,9 +1,10 @@
-﻿//using CloudStructures;
+//using CloudStructures;
 //using CloudStructures.Structures;
-using Microsoft.AspNetCore.Hosting.Server;
+//using CloudStructures;
+//using Microsoft.AspNetCore.Hosting.Server;
 using StackExchange.Redis;
-using System.Diagnostics.Eventing.Reader;
-using System.Reflection;
+//using System.Diagnostics.Eventing.Reader;
+//using System.Reflection;
 using ZLogger;
 using ZLogger.Entries;
 
@@ -23,6 +24,7 @@ public class RedisRoomDbService : IRoomDbService
     readonly ILogger<RedisRoomDbService> _logger;
     readonly IDatabase _db;
     readonly StackExchange.Redis.IServer _server;
+    //readonly RedisConnection _connection;
 
     readonly String SCRIPT_ROOM_LIST_UP = "local roomKeys = redis.call('KEYS', 'room:*:title') local roomInfo = {} for i, roomKey in ipairs(roomKeys) do local roomId = roomKey:match('room:(%d+):title') local title = redis.call('GET', roomKey) local users = redis.call('ZCARD', 'room:' .. roomId .. ':users') table.insert(roomInfo, '\t' .. roomId .. '\t' .. title .. '\t' .. users) end return roomInfo";
     //    readonly String SCRIPT_ROOM_ENTER = "if redis.call('EXISTS', @KEY0) ~= 0 then return 103 end local title = redis.call('GET', @KEY1) if title == false or title == nil then redis.call('DEL', @KEY2, @KEY3, @KEY4, @KEY5) redis.call('INCR', 'room:count') local title2 = 'Room' .. @ARGV2 redis.call('SET', @KEY1, title2) redis.call('SET', @KEY0, @ARGV2) redis.call('ZADD', @KEY5, @ARGV0, @ARGV1) redis.call('ZADD', @KEY2, @ARGV0, @ARGV1) return '\tT ' .. title2 .. '\tU ' .. @ARGV1 .. '\tH ' .. @ARGV1 .. '\tu ' .. @ARGV0 .. '\th ' .. @ARGV0 end local userIds = redis.call('ZRANGE', @KEY2, 0, -1) if #userIds >= 4 then return 102 end redis.call('SET', @KEY0, @ARGV2) redis.call('ZADD', @KEY2, @ARGV0, @ARGV1) local alluserIds = {} local allnicknames = {} local users = redis.call('ZRANGE', @KEY2, 0, -1, 'WITHSCORES') for i = 1, #users, 2 do table.insert(alluserIds, tonumber(users[i + 1])) table.insert(allnicknames, users[i]) end local anicknames = {} local bnicknames = {} local readys_a = redis.call('ZRANGE', @KEY3, 0, -1, 'WITHSCORES') for i = 1, #readys_a, 2 do table.insert(anicknames, readys_a[i]) end local readys_b = redis.call('ZRANGE', @KEY4, 0, -1, 'WITHSCORES') for i = 1, #readys_b, 2 do table.insert(bnicknames, readys_b[i]) end local host = redis.call('ZRANGE', 'room:' .. @ARGV2.. ':host', 0, -1, 'WITHSCORES') return '\tT ' .. title .. '\tU ' .. table.concat(allnicknames, ' ') .. '\tH '  .. host[1] .. '\tA ' .. table.concat(anicknames, ' ') .. '\tB ' .. table.concat(bnicknames, ' ') .. '\tu ' .. table.concat(alluserIds, ' ') .. '\th ' .. host[2]";
@@ -51,7 +53,8 @@ public class RedisRoomDbService : IRoomDbService
         ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(options);
         _db = redis.GetDatabase();
         _server = redis.GetServer(connectionString);
-        var redisConfig = new CloudStructures.RedisConfig("room", options);
+        //var redisConfig = new CloudStructures.RedisConfig("room", options);
+        //_connection = new CloudStructures.RedisConnection(redisConfig);
     }
 
     public ErrorCode SetScripts()
@@ -277,6 +280,57 @@ public class RedisRoomDbService : IRoomDbService
         {
             _logger.ZLogErrorWithPayload(ex, new { func = "EnterRoom", userId = userId }, "SetUserReady EXCEPTION");
             return (ErrorCode.RoomDbError, null);
+        }
+    }
+
+    public async Task<(ErrorCode, String?)> GameStartCheck(Int64 userId, String nickname)
+    {
+        try
+        {
+            Object test = new
+            {
+                KEY0 = (RedisKey)$"user:{userId}:room", // STRING
+                ARGV0 = (RedisValue)userId,
+                ARGV1 = (RedisValue)nickname
+            };
+
+            RedisResult redisResult;
+            redisResult = await _loadedGameStart.EvaluateAsync(_db, test);
+
+            if (redisResult == null)
+            {
+                _logger.ZLogErrorWithPayload(new { userId = userId }, "GameStartCheck return null");
+                return (ErrorCode.RoomDbError, null);
+            }
+            else if (redisResult.Type == ResultType.Integer)
+            {
+                _logger.ZLogWarningWithPayload(new { userId = userId }, "GameStartCheck status error");
+                return ((ErrorCode)((Int16)redisResult), null);
+            }
+            else if (redisResult.Type == ResultType.BulkString)
+            {
+                return (ErrorCode.None, (String)redisResult);
+            }
+            return (ErrorCode.RoomDbError, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.ZLogErrorWithPayload(ex, new { func = "EnterRoom", userId = userId }, "GameStartCheck EXCEPTION");
+            return (ErrorCode.RoomDbError, null);
+        }
+    }
+
+    public async Task<ErrorCode> PubGameStart(String gameInfoString)
+    {
+        try
+        {
+            await _db.PublishAsync("api01", gameInfoString);
+            return ErrorCode.None;
+        }
+        catch (Exception ex)
+        {
+            _logger.ZLogErrorWithPayload(ex, new { func = "PubGameStart", gameInfoString = gameInfoString }, "PubGameStart EXCEPTION");
+            return ErrorCode.RoomDbError;
         }
     }
 }
