@@ -66,7 +66,7 @@ public class RoomController : ControllerBase
     }
 
     [Route("ws/Enter")]
-    public async Task Enter()//(RoomEnterRequest request)
+    public async Task Enter()
     {
         RoomService roomService;
         if (HttpContext.WebSockets.IsWebSocketRequest)
@@ -79,30 +79,4 @@ public class RoomController : ControllerBase
             HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
         }
     }
-
-
-    //[HttpPost("Leave")]
-    //public async Task<RoomLeaveResponse> Leave(RoomLeaveRequest request)
-    //{
-    //    var response = new RoomLeaveResponse();
-    //    response.errorCode = await _roomDbService.LeaveRoom(0, 10, "User H");
-    //    return response;
-    //}
-
-    //async Task<ErrorCode> UserRoomEnter((RoomReqUserInfo, Int16) input)
-    //{
-    //    return ErrorCode.None;
-    //}
-
-    //async Task<ErrorCode> UserRoomLeave((RoomReqUserInfo, Int16) input)
-    //{
-    //    return ErrorCode.None;
-    //}
-
-    //async Task<ErrorCode> UserReady((RoomReqUserInfo, Int16) input)
-    //{
-    //    return ErrorCode.None;
-    //}
-
-
 }
