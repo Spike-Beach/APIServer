@@ -121,8 +121,6 @@ public class RoomService
 
     public async Task<ErrorCode> ProcessRoomRequests(WebSocket webSocket)
     {
-        // 헤더 파싱 후 유효성 확인
-        // 헤더에 따라서 처리할 함수를 호출 -> 무조건 RoomEnterrm 그 이외엔 연결 끊기.
         RequestHeader sockHeader = new RequestHeader();
         //CancellationTokenSource cts = new CancellationTokenSource();
         //cts.CancelAfter(5000);
@@ -130,7 +128,7 @@ public class RoomService
         CustomWebSocket cWs = new CustomWebSocket() { webSocket = webSocket };
         try
         {
-            while (!webSocket.CloseStatus.HasValue)
+            while (webSocket.CloseStatus.HasValue == false)
             {
                 var receiveResult = await webSocket.ReceiveAsync(new ArraySegment<byte>(cWs.buffer), CancellationToken.None);
                 sockHeader.Deserialize(cWs.buffer);
@@ -150,15 +148,18 @@ public class RoomService
                 else if (errorCode != ErrorCode.None)
                 {
                     _logger.ZLogInformationWithPayload(new { userId = cWs.userId, errorCode = errorCode }, "ProcessRoomRequests ErrorCode");
-                    cWs.errorCode = ErrorCode.ServerError;
+                    //cWs.errorCode = ErrorCode.ServerError;
+                    cWs.errorCode = errorCode;
                     await waitSockClose(cWs);
                     return errorCode;
                 }
             }
+            _logger.ZLogInformationWithPayload(new { }, "Test");
         }
         catch (Exception ex)
         {
-            _logger.ZLogWarningWithPayload(new { userId = cWs.userId, ex.Message, ex.StackTrace }, "ProcessRoomRequests Exception");
+            //_logger.ZLogWarningWithPayload(new { userId = cWs.userId, ex.Message, ex.StackTrace }, "ProcessRoomRequests Exception");
+            //await UserLeaveRoom(cWs);
             cWs.errorCode = ErrorCode.InvalidPacketForm;
             await waitSockClose(cWs);
         }
@@ -236,7 +237,11 @@ public class RoomService
         var (errorCode, orgInfoStr) = await _roomDb.LeaveRoom(cWs.userId.Value, cWs.nickName);
         _socketsDic.TryRemove(cWs.userId.Value, out var sock);
         RoomLeaveResponse response = new RoomLeaveResponse() { errorCode = errorCode };
-        await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
+        if (cWs.webSocket.State != WebSocketState.Connecting)
+        {
+            await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
+        }
+
         if (errorCode == ErrorCode.RoomLeaveSuccess && orgInfoStr != null)
         {
             RoomInfo roomInfo = new RoomInfo(orgInfoStr);
@@ -400,17 +405,21 @@ public class RoomService
         var currentTime = DateTime.Now;
         short closeCount = 0;
         ResponseHeader response = new ResponseHeader() { errorCode = cWs.errorCode };
-        await cWs.webSocket.SendAsync(response.Serialize((Int32)PacketIdDef.GenericError), WebSocketMessageType.Binary, true, CancellationToken.None);
-        while (!cWs.webSocket.CloseStatus.HasValue)
+        if (cWs.webSocket.State == WebSocketState.Open || cWs.webSocket.State == WebSocketState.Connecting)
         {
-            if (closeCount == 3)
+            await cWs.webSocket.SendAsync(response.Serialize((Int32)PacketIdDef.GenericError), WebSocketMessageType.Binary, true, CancellationToken.None);
+            while (cWs.webSocket.CloseStatus.HasValue == false)
             {
-                using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                await cWs.webSocket.CloseAsync(WebSocketCloseStatus.PolicyViolation, null, cts.Token);
+                if (closeCount == 3)
+                {
+                    using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                    await cWs.webSocket.CloseAsync(WebSocketCloseStatus.PolicyViolation, null, cts.Token);
+                }
+                ++closeCount;
+                await Task.Delay(1000);
             }
-            ++closeCount;
-            await Task.Delay(1000);
         }
+
         if (cWs.userId != null)
         {
             await _roomDb.LeaveRoom(cWs.userId.Value, cWs.nickName);
@@ -428,3 +437,25 @@ public class RoomService
         return (errorCode, userInfo);
     }
 }
+
+//public class MyWebSocketHandler : WebSocketHandler
+//{
+//    public override void OnOpen()
+//    {
+//        // 클라이언트가 연결되었을 때 수행할 로직
+//        Console.WriteLine("OnOpen()");
+//    }
+
+//    public override async Task OnMessage(string message)
+//    {
+//        // 클라이언트로부터 메시지를 받았을 때 수행할 로직
+//        Console.WriteLine("OnMessage()");
+//    }
+
+//    public override void OnClose()
+//    {
+//        // 클라이언트가 접속을 끊었을 때 수행할 로직
+//        // 예를 들어, 연결 종료 시 특정 작업을 수행하거나 클라이언트 정보를 관리하는 등의 동작을 할 수 있습니다.
+//        Console.WriteLine("OnClose()");
+//    }
+//}
