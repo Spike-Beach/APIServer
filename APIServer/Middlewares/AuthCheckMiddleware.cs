@@ -3,7 +3,6 @@ using APIServer.Service.Session;
 using APIServer.Service.Session.Model;
 using System.Text;
 using System.Text.Json;
-using System.Net.WebSockets;
 using ZLogger;
 
 namespace DungeonFarming.Middleware;
@@ -29,6 +28,7 @@ public class AuthCheckMiddleware
             return;
         }
 
+        // http 파싱
         context.Request.EnableBuffering();
         using var streamReader = new StreamReader(context.Request.Body, Encoding.UTF8, true, 1024, true);
         var requestBody = await streamReader.ReadToEndAsync();
@@ -39,12 +39,14 @@ public class AuthCheckMiddleware
             return ;
         }
 
+        // 토큰 추출
         var (userAssignedId, requestToken) = await GetIdToken(context, requestBody);
         if (userAssignedId == null || requestToken == null)
         {
             return;
         }
 
+        // 세션 가져와서 토큰 검증
         var userSession = await GetUserSession(userAssignedId);
         if (userSession == null)
         {
@@ -56,6 +58,7 @@ public class AuthCheckMiddleware
             return ;
         }
 
+        // 세션 정보 컨택스트에 저장
         context.Items["session"] = userSession;
         context.Request.Body.Position = 0;
         
@@ -66,6 +69,7 @@ public class AuthCheckMiddleware
     {
         try
         {
+            // json에서 파싱 후 추출
             var doc = JsonDocument.Parse(requestBody);
             if (doc == null)
             {

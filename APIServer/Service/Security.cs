@@ -14,25 +14,24 @@ public static class Security
         }
         // https://learn.microsoft.com/ko-kr/dotnet/api/system.security.cryptography.rfc2898derivebytes?view=net-7.0
         Rfc2898DeriveBytes pbkdf2 = new Rfc2898DeriveBytes(rawPassword, saltBytes, RepeatCnt, HashAlgorithmName.SHA256);
-        byte[] hashedPasswordBytes = pbkdf2.GetBytes(32);
+        byte[] hashedPasswordBytes = pbkdf2.GetBytes(31); // 32 -> 31
         return (saltBytes, hashedPasswordBytes);
     }
 
     public static bool VerifyHashedPassword(String rawPassword, byte[] saltBytes, byte[] hashedPasswordBytes)
     {
         Rfc2898DeriveBytes pbkdf2 = new Rfc2898DeriveBytes(rawPassword, saltBytes, RepeatCnt, HashAlgorithmName.SHA256);
-        byte[] newHashed = pbkdf2.GetBytes(32);
+        byte[] newHashed = pbkdf2.GetBytes(31);
         return hashedPasswordBytes.SequenceEqual(newHashed);
     }
 
     public static String GenerateToken()
     {
-        byte[] tokenBytes = new byte[32];
+        byte[] tokenBytes = new byte[31];
         using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
         {
             rng.GetBytes(tokenBytes);
         }
-        return Convert.ToBase64String(tokenBytes)
-            .Replace("+", "").Replace("/", "");
+        return Convert.ToBase64String(tokenBytes).Replace("+", "").Replace("/", "");
     }
 }

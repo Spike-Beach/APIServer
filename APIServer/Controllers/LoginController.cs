@@ -25,6 +25,7 @@ namespace APIServer.Controllers
         [HttpPost]
         public async Task<LoginResponse> Login(LoginRequest request)
         {
+            // DB와 연결하여, 로그인 정보 읽어옴
             LoginResponse response = new LoginResponse();
             var (errorCode, account) = await _gameDb.ReadAccount(request.userAssignedId);
             if (errorCode != ErrorCode.None || account == null)
@@ -33,12 +34,14 @@ namespace APIServer.Controllers
                 return response;
             }
 
+            // 비밀번호 검증
             if (Security.VerifyHashedPassword(request.password, account.salt, account.hashed_password) == false)
             {
                 response.errorCode = ErrorCode.WorngPassword;
                 return response;
             }
 
+            // 토큰 생성 및 세션 저장
             response.token = Security.GenerateToken();
             response.errorCode = await _sessionService.SetSession(new SessionModel
             {

@@ -24,6 +24,7 @@ public class RedisSessionService : ISessionService
         return "Session:" + userAssignedId;
     }
 
+    // redis에 세션 set
     public async Task<ErrorCode> SetSession(SessionModel model)
     {
         try
@@ -47,6 +48,7 @@ public class RedisSessionService : ISessionService
         }
     }
 
+    // redis에서 세션 get
     public async Task<(ErrorCode, SessionModel?)> GetSession(string userAssignedId)
     {
         try
@@ -69,6 +71,7 @@ public class RedisSessionService : ISessionService
         }
     }
 
+    // redis에서 세션 delete
     public async Task<ErrorCode> DeleteSession(string userAssignedId)
     {
         try

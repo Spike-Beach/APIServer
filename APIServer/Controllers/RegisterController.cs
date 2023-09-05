@@ -31,6 +31,7 @@ namespace APIServer.Controllers
                 return response;
             }
 
+            // DB에 요청
             response.errorCode = await _gameDb.RegistUserInfo(userId);
             if (response.errorCode != ErrorCode.None) 
             {
