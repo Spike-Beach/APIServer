@@ -20,6 +20,7 @@ public class MysqlGameDbService : IGameDbServcie
         _logger = logger;
     }
 
+    // DB에 계정 등록
     public async Task<(ErrorCode, Int64)> RegistAccount(String userAssignedId, String nickname, byte[] salt, byte[] hashed_password)
     {
         try
@@ -57,6 +58,8 @@ public class MysqlGameDbService : IGameDbServcie
             return (ErrorCode.AccountDbError, -1);
         }
     }
+
+    //DB에서 계정 읽기
     public async Task<(ErrorCode, Account?)> ReadAccount(string userAssignedId)
     {
         try
@@ -85,6 +88,7 @@ public class MysqlGameDbService : IGameDbServcie
         }
     }
 
+    // DB에 userInfo 등록
     public async Task<ErrorCode> RegistUserInfo(Int64 userId)
     {
         try
@@ -109,6 +113,7 @@ public class MysqlGameDbService : IGameDbServcie
         }
     }
 
+    // DB에서 userInfo 읽기
     public async Task<(ErrorCode, UserInfo?)> ReadUserInfo(Int64 userId)
     {
         try

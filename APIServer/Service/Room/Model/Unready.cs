@@ -1,4 +1,4 @@
-﻿using APIServer.Controllers;
+﻿using APIServer.Controllers.ReqResModels;
 using System.Text;
 
 namespace APIServer.Service.Room.Model;

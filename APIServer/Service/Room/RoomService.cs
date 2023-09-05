@@ -1,96 +1,12 @@
-﻿using APIServer.Controllers;
-using APIServer.Controllers.ReqResModels;
-using APIServer.GanaricModels;
-using APIServer.Service.Room.Model;
+﻿using APIServer.Service.Room.Model;
 using APIServer.Service.Session;
 using APIServer.Service.Session.Model;
-using Microsoft.AspNetCore.Http;
-using System;
+using APIServer.Controllers.ReqResModels;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using System.Text;
 using ZLogger;
 
 namespace APIServer.Service.Room;
-
-public class CustomWebSocket
-{
-    public WebSocket webSocket { get; set; }
-    public long? userId { get; set; }
-    public String nickName { get; set; }
-    public byte[] buffer { get; set; } = new byte[1024];
-    public ErrorCode errorCode { get; set; }
-}
-
-public class RoomInfo
-{
-    public String info4Client { get; }
-    public List<Int64> allUserIds { get; }
-    public Int64 hostId { get; }
-    public List<Int64> teamAUserIds { get; }
-    public List<Int64> teamBUserIds { get; }
-    public RoomInfo(String? orgInfoString)
-    {
-        if (orgInfoString == null)
-        {
-            return;
-        }
-        string[] splitData = orgInfoString.Split("\t", StringSplitOptions.RemoveEmptyEntries);
-
-        allUserIds = new List<long>();
-        long hostId = -1;
-        teamAUserIds = new List<long>();
-        teamBUserIds = new List<long>();
-
-        foreach (string item in splitData)
-        {
-            if (item.StartsWith("u"))
-            {
-                string[] userIdStrings = item.Substring(1).Trim().Split(' ');
-                foreach (string userIdString in userIdStrings)
-                {
-                    if (long.TryParse(userIdString, out long userId))
-                    {
-                        allUserIds.Add(userId);
-                    }
-                }
-            }
-            //else if (item.StartsWith("h"))
-            //{
-            //    if (long.TryParse(item.Substring(1).Trim(), out long userId))
-            //    {
-            //        hostId = userId;
-            //    }
-            //}
-            //else if (item.StartsWith("a"))
-            //{
-            //    string[] userIdStrings = item.Substring(1).Trim().Split(' ');
-            //    foreach (string userIdString in userIdStrings)
-            //    {
-            //        if (long.TryParse(userIdString, out long userId))
-            //        {
-            //            teamAUserIds.Add(userId);
-            //        }
-            //    }
-            //}
-            //else if (item.StartsWith("b"))
-            //{
-            //    string[] userIdStrings = item.Substring(1).Trim().Split(' ');
-            //    foreach (string userIdString in userIdStrings)
-            //    {
-            //        if (long.TryParse(userIdString, out long userId))
-            //        {
-            //            teamBUserIds.Add(userId);
-            //        }
-            //    }
-            //}
-            else if (char.IsUpper(item[0]))
-            {
-                info4Client += "\t" + item;
-            }
-        }
-    }
-}
 
 public class RoomService
 {
@@ -119,11 +35,10 @@ public class RoomService
         _logger = logger;
     }
 
+    // 요청 패킷을 받아서 확인하고 분기시키는 함수.
     public async Task<ErrorCode> ProcessRoomRequests(WebSocket webSocket)
     {
         RequestHeader sockHeader = new RequestHeader();
-        //CancellationTokenSource cts = new CancellationTokenSource();
-        //cts.CancelAfter(5000);
 
         CustomWebSocket cWs = new CustomWebSocket() { webSocket = webSocket };
         try
@@ -138,6 +53,8 @@ public class RoomService
                     await waitSockClose(cWs);
                     throw new ArgumentException("Invalid PacketId");
                 }
+                
+                // 패킷에 맞는 함수로 분기
                 var errorCode = await func(cWs);
                 if (errorCode == ErrorCode.RoomLeaveSuccess || errorCode == ErrorCode.RoomDeleted)
                 {
@@ -148,7 +65,6 @@ public class RoomService
                 else if (errorCode != ErrorCode.None)
                 {
                     _logger.ZLogInformationWithPayload(new { userId = cWs.userId, errorCode = errorCode }, "ProcessRoomRequests ErrorCode");
-                    //cWs.errorCode = ErrorCode.ServerError;
                     cWs.errorCode = errorCode;
                     await waitSockClose(cWs);
                     return errorCode;
@@ -158,20 +74,20 @@ public class RoomService
         }
         catch (Exception ex)
         {
-            //_logger.ZLogWarningWithPayload(new { userId = cWs.userId, ex.Message, ex.StackTrace }, "ProcessRoomRequests Exception");
-            //await UserLeaveRoom(cWs);
             cWs.errorCode = ErrorCode.InvalidPacketForm;
             await waitSockClose(cWs);
         }
         return ErrorCode.None;
     }
 
+    // 방 입장 패킷 처리하는 함수
     public async Task<ErrorCode> UserEnterRoom(CustomWebSocket cWs)
     {
         WebSocket sock;
         var request = new RoomEnterRequest();
         request.Deserialize(cWs.buffer);
 
+        // 세션 체크
         var (errorCode, userInfoSession) = await GetSession(request.userAssignedId);
         if (errorCode != ErrorCode.None || userInfoSession == null)
         {
@@ -192,6 +108,7 @@ public class RoomService
             return ErrorCode.WorngClientVersion;
         }
 
+        // 방 입장
         cWs.userId = userInfoSession.userId;
         cWs.nickName = userInfoSession.nickname;
         var (rtErrorCode, orgInfoStr) = await _roomDb.EnterRoom(request.roomId, cWs.userId.Value, userInfoSession.nickname);
@@ -201,23 +118,22 @@ public class RoomService
                 "_roomDb.EnterRoom rtErrorCode != ErrorCode.None || orgInfoStr == null");
             return rtErrorCode;
         }
-
         if (_socketsDic.TryAdd(cWs.userId.Value, cWs.webSocket) == false)
         {
             _logger.ZLogCriticalWithPayload(new { userId = cWs.userId, cWs.webSocket }, "UserEnterRoom _socketsDic.TryAdd");
             return ErrorCode.RoomDbError;
         }
 
+        // 방 입장 응답
         RoomInfo roomInfo = new RoomInfo(orgInfoStr);
         RoomEnterResponse response = new RoomEnterResponse() { roomInfoString = roomInfo.info4Client };
         await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
-        //CancellationTokenSource cts = new CancellationTokenSource();
-        //cts.CancelAfter(TimeSpan.FromSeconds(60));
         RoomEnterNotify notify = new RoomEnterNotify() { enterUserNick = cWs.nickName };
         await SendInRoomAsync(roomInfo.allUserIds, notify.Serialize(), CancellationToken.None);
         return ErrorCode.None;
     }
 
+    // 방 퇴장 패킷 처리하는 함수
     public async Task<ErrorCode> UserLeaveRoom(CustomWebSocket cWs)
     {
         // cWs유효성 검증
@@ -234,6 +150,7 @@ public class RoomService
 
         RoomLeaveRequest request = new RoomLeaveRequest();
         request.Deserialize(cWs.buffer);
+        // 서비스에 요청
         var (errorCode, orgInfoStr) = await _roomDb.LeaveRoom(cWs.userId.Value, cWs.nickName);
         _socketsDic.TryRemove(cWs.userId.Value, out var sock);
         RoomLeaveResponse response = new RoomLeaveResponse() { errorCode = errorCode };
@@ -251,6 +168,7 @@ public class RoomService
         return errorCode;
     }
 
+    // 방 팀 선택 + 레디 패킷 처리하는 함수
     public async Task<ErrorCode> UserReady(CustomWebSocket cWs)
     {
         if (cWs.userId == null)
@@ -266,6 +184,7 @@ public class RoomService
 
         ReadyRequest request = new ReadyRequest();
         request.Deserialize(cWs.buffer);
+        // 서비스에 요청
         var (errorCode, orgInfoStr) = await _roomDb.SetUserReady(cWs.userId.Value, cWs.nickName, request.team);
         if (errorCode == ErrorCode.None && orgInfoStr != null)
         {
@@ -276,6 +195,7 @@ public class RoomService
         return errorCode;
     }
 
+    // 방 팀 레디 해제 패킷 처리하는 함수
     public async Task<ErrorCode> UserUnready(CustomWebSocket cWs)
     {
         if (cWs.userId == null)
@@ -291,6 +211,7 @@ public class RoomService
 
         ReadyRequest request = new ReadyRequest();
         request.Deserialize(cWs.buffer);
+        // 서비스에 요청.
         var (errorCode, orgInfoStr) = await _roomDb.SetUserUnready(cWs.userId.Value, cWs.nickName);
         if (errorCode == ErrorCode.None && orgInfoStr != null)
         {
@@ -300,46 +221,8 @@ public class RoomService
         }
         return errorCode;
     }
-    //public async Task<ErrorCode> GameStart(CustomWebSocket cWs)
-    //{
-    //    //
-    //    cWs.userId = 1;
-    //    cWs.nickName = "gyeon";
-    //    _socketsDic.TryAdd(1, cWs.webSocket);
-    //    //
-    //    if (cWs.userId == null)
-    //    {
-    //        _logger.ZLogCritical("GameStart no userId");
-    //        return ErrorCode.RoomDbError;
-    //    }
-    //    else if (_socketsDic.TryGetValue(cWs.userId.Value, out var ws) == false || ws.Equals(cWs.webSocket) == false)
-    //    {
-    //        _logger.ZLogCriticalWithPayload(new { userId = cWs.userId }, "GameStart userId not saved in dic");
-    //        return ErrorCode.RoomDbError;
-    //    }
 
-    //    GameStartRequest request = new GameStartRequest();
-    //    request.Deserialize(cWs.buffer);
-    //    var (errorCode, orgInfoStr) = await _roomDb.GameStartCheck(cWs.userId.Value, cWs.nickName);
-    //    GameStartResponse response = new GameStartResponse() { errorCode = errorCode };
-    //    await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
-    //    if (errorCode == ErrorCode.None && orgInfoStr != null)
-    //    {
-    //        GameStartNotify notify = new GameStartNotify() { gameInfoString = _gameServerInfoString };
-    //        RoomInfo roomInfo = new RoomInfo(orgInfoStr);
-
-    //        var pubErrorCode = await _roomDb.PubGameStart(roomInfo.info4Client);
-    //        if (pubErrorCode != ErrorCode.None)
-    //        {
-    //            return pubErrorCode;
-    //        }
-
-    //        await SendInRoomAsync(roomInfo.allUserIds, notify.Serialize(), CancellationToken.None);
-    //        return ErrorCode.None;
-    //    }
-    //    return errorCode;
-    //}
-
+    // 게임 시작 패킷 처리 함수.
     public async Task<ErrorCode> GameStart(CustomWebSocket cWs)
     {
         if (cWs.userId == null)
@@ -355,7 +238,7 @@ public class RoomService
 
         GameStartRequest request = new GameStartRequest();
         request.Deserialize(cWs.buffer);
-
+        // 서비스에 요청.
         var (errorCode, orgInfoStr) = await _roomDb.GameStartCheck(cWs.userId.Value, cWs.nickName);
         GameStartResponse response = new GameStartResponse() { errorCode = errorCode };
         await cWs.webSocket.SendAsync(response.Serialize(), WebSocketMessageType.Binary, true, CancellationToken.None);
@@ -377,6 +260,7 @@ public class RoomService
         return errorCode;
     }
 
+    // 전달받은 유저 list에 패킷을 날리는 함수
     async Task SendInRoomAsync(List<Int64> userIdArr, byte[] Msg, CancellationToken token)
     {
         WebSocket ws;
@@ -400,6 +284,7 @@ public class RoomService
         }
     }
 
+    // 기다렸다가 소켓을 닫는 함수
     async Task waitSockClose(CustomWebSocket cWs)
     {
         var currentTime = DateTime.Now;
@@ -407,6 +292,7 @@ public class RoomService
         ResponseHeader response = new ResponseHeader() { errorCode = cWs.errorCode };
         if (cWs.webSocket.State == WebSocketState.Open || cWs.webSocket.State == WebSocketState.Connecting)
         {
+            // 소켓 닫기 요청을 보냄
             await cWs.webSocket.SendAsync(response.Serialize((Int32)PacketIdDef.GenericError), WebSocketMessageType.Binary, true, CancellationToken.None);
             while (cWs.webSocket.CloseStatus.HasValue == false)
             {
@@ -437,25 +323,3 @@ public class RoomService
         return (errorCode, userInfo);
     }
 }
-
-//public class MyWebSocketHandler : WebSocketHandler
-//{
-//    public override void OnOpen()
-//    {
-//        // 클라이언트가 연결되었을 때 수행할 로직
-//        Console.WriteLine("OnOpen()");
-//    }
-
-//    public override async Task OnMessage(string message)
-//    {
-//        // 클라이언트로부터 메시지를 받았을 때 수행할 로직
-//        Console.WriteLine("OnMessage()");
-//    }
-
-//    public override void OnClose()
-//    {
-//        // 클라이언트가 접속을 끊었을 때 수행할 로직
-//        // 예를 들어, 연결 종료 시 특정 작업을 수행하거나 클라이언트 정보를 관리하는 등의 동작을 할 수 있습니다.
-//        Console.WriteLine("OnClose()");
-//    }
-//}

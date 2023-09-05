@@ -1,36 +1,12 @@
 ﻿using APIServer.Controllers.ReqResModels;
-using APIServer.GanaricModels;
 using APIServer.Service.Room;
 using APIServer.Service.Session;
-using APIServer.Service.Session.Model;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Text.Json;
+
 
 namespace APIServer.Controllers;
 
-public enum PacketIdDef : Int32
-{
-    GenericError = 0,
-    RoomEnterReq = 10,
-    RoomEnterRes = 11,
-    RoomEnterNtf = 12,
-    RoomLeaveReq = 13,
-    RoomLeaveRes = 14,
-    RoomLeaveNtf = 15,
-    RoomReadyReq = 16,
-    RoomReadyRes = 17,
-    RoomReadyNtf = 18,
-    RoomUnreadyReq = 19,
-    RoomUnreadyRes = 20,
-    RoomUnreadyNtf = 21,
-    GameStartReq = 22,
-    GameStartRes = 23,
-    GameStartNtf = 24,
-}
+
 
 [Route("[controller]")]
 [ApiController]
