@@ -14,7 +14,7 @@ public static class Security
         }
         // https://learn.microsoft.com/ko-kr/dotnet/api/system.security.cryptography.rfc2898derivebytes?view=net-7.0
         Rfc2898DeriveBytes pbkdf2 = new Rfc2898DeriveBytes(rawPassword, saltBytes, RepeatCnt, HashAlgorithmName.SHA256);
-        byte[] hashedPasswordBytes = pbkdf2.GetBytes(31); // 32 -> 31
+        byte[] hashedPasswordBytes = pbkdf2.GetBytes(31);
         return (saltBytes, hashedPasswordBytes);
     }
 
