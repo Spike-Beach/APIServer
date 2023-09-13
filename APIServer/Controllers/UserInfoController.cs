@@ -18,7 +18,7 @@ namespace APIServer.Controllers
         {
             _gameDbServcie = gameDbServcie;
             _logger = logger;
-            // as키워드: 형변환을 시도하고, 실패시 null로 할당.
+
             _session = httpContextAccessor.HttpContext.Items["session"] as SessionModel;
         }
 
